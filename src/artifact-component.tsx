@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { words, congratulatoryPhrases } from "./constants";
 import "./App.css";
-
+import CustomKeyboard from './CustomKeyboard';
+import Cookies from 'js-cookie';
 
 const getWordOfDay = (): string => {
   const startDate = new Date("2023-01-01").setHours(0, 0, 0, 0);
@@ -65,10 +66,81 @@ const WordGrid: React.FC = () => {
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [shareContent, setShareContent] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [usedLetters, setUsedLetters] = useState<{[key: string]: string}>({});
+  const [todaysWord, setTodaysWord] = useState<string>("");
 
   useEffect(() => {
-    setWord(getWordOfDay());
+    const today = new Date().toISOString().split('T')[0];
+    const storedGameState = Cookies.get('wordGridGameState');
+    
+    if (storedGameState) {
+      const { date, word, guesses: storedGuesses, gameOver: storedGameOver, gameWon: storedGameWon, usedLetters: storedUsedLetters } = JSON.parse(storedGameState);
+      
+      if (date === today) {
+        setWord(word);
+        setGuesses(storedGuesses);
+        setGameOver(storedGameOver);
+        setGameWon(storedGameWon);
+        setTodaysWord(word);
+        setUsedLetters(storedUsedLetters || {});
+        return;
+      }
+    }
+    
+    const newWord = getWordOfDay();
+    setWord(newWord);
+    setTodaysWord(newWord);
+    Cookies.set('wordGridGameState', JSON.stringify({
+      date: today,
+      word: newWord,
+      guesses: [],
+      gameOver: false,
+      gameWon: false,
+      usedLetters: {}
+    }), { expires: 1 });
   }, []);
+
+  useEffect(() => {
+    if (todaysWord) {
+      const today = new Date().toISOString().split('T')[0];
+      Cookies.set('wordGridGameState', JSON.stringify({
+        date: today,
+        word: todaysWord,
+        guesses,
+        gameOver,
+        gameWon,
+        usedLetters
+      }), { expires: 1 });
+    }
+  }, [guesses, gameOver, gameWon, todaysWord, usedLetters]);
+
+  const handleKeyPress = (key: string) => {
+    if (gameOver) return;
+
+    if (key === 'ENTER') {
+      handleGuess();
+    } else if (key === '⌫') {
+      setCurrentGuess(prev => prev.slice(0, -1));
+    } else if (currentGuess.length < word.length) {
+      setCurrentGuess(prev => prev + key);
+    }
+  };
+
+  const updateUsedLetters = (guess: string) => {
+    const newUsedLetters = { ...usedLetters };
+    for (let i = 0; i < guess.length; i++) {
+      const letter = guess[i];
+      const color = getLetterColor(i, guess);
+      if (color === 'bg-green-600') {
+        newUsedLetters[letter] = 'correct';
+      } else if (color === 'bg-yellow-600' && newUsedLetters[letter] !== 'correct') {
+        newUsedLetters[letter] = 'present';
+      } else if (color === 'bg-red-700' && !newUsedLetters[letter]) {
+        newUsedLetters[letter] = 'absent';
+      }
+    }
+    setUsedLetters(newUsedLetters);
+  };
 
   const handleGuess = () => {
     if (currentGuess.length !== word.length && currentGuess !== "AJASVER") {
@@ -79,6 +151,7 @@ const WordGrid: React.FC = () => {
     setErrorMessage("");
     const newGuesses = [...guesses, currentGuess];
     setGuesses(newGuesses);
+    updateUsedLetters(currentGuess);
     setCurrentGuess("");
 
     if (currentGuess === word || currentGuess === "AJASVER") {
@@ -128,7 +201,7 @@ const WordGrid: React.FC = () => {
   };
 
   const renderGrid = () => {
-    const allGuesses = [...guesses, ...Array(6 - guesses.length).fill("")];
+    const allGuesses = [...guesses, currentGuess, ...Array(5 - guesses.length).fill("")];
     return allGuesses.map((guess, i) => (     
       <div key={i} className="flex mb-2 justify-center">
         {Array.from({ length: word.length }).map((_, j) => (
@@ -136,13 +209,15 @@ const WordGrid: React.FC = () => {
             key={j}
             className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center mx-0.5 sm:mx-1 text-sm sm:text-base
               relative overflow-hidden
-              ${!guess ? "bg-gray-800" : getLetterColor( j, guess)}`}
+              ${!guess ? "bg-gray-800" : 
+                i === guesses.length ? "bg-gray-700" :
+                getLetterColor(j, guess)}`}
           >
             <div className="absolute top-0 left-0 right-0 h-1 bg-white"></div>
             <div className="absolute top-0 bottom-1/2 left-0 w-1 bg-white"></div>
             <div className="absolute top-0 bottom-1/2 right-0 w-1 bg-white"></div>
            
-              <span className="relative z-10">{guess[j] || ""}</span>
+            <span className="relative z-10">{guess[j] || ""}</span>
           </div>
         ))}
       </div>
@@ -171,79 +246,75 @@ const WordGrid: React.FC = () => {
     setIsShareModalOpen(true);
   };
 
-  return (
-    <div className="max-w-sm mx-auto mt-4 p-4 bg-gray-900 rounded-lg shadow-lg text-white">
-      <div className="mb-4 h-8 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CiAgPHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZmZmIiAvPgogIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZmZmIiAvPgo8L3N2Zz4=')]"></div>
-      <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center text-red-600">
-        Word Grid
-      </h1>
-      <div className="text-center mb-4 text-gray-300">
-        Daily F1-Inspired Word Game
-      </div>
-      {renderGrid()}
-      {!gameOver && (
-        <div className="mb-4">
-          <input
-            type="text"
-            value={currentGuess}
-            onChange={(e) => setCurrentGuess(e.target.value.toUpperCase())}
-            maxLength={word.length}
-            className="w-full p-2 border border-gray-600 rounded bg-gray-800 text-white text-sm sm:text-base"
-            placeholder={`Guess the ${word.length}-letter F1 word, phrase or name`}
-          />
-          {errorMessage && (
-            <p className="text-red-500 text-sm mt-1">{errorMessage}</p>
-          )}
+  const renderBottomSection = () => {
+    if (gameOver) {
+      return (
+        <div className="bg-gray-900 p-4 border-t border-gray-800">
+          <Alert className={`bg-gray-800 ${gameWon ? 'border-green-600' : 'border-red-600'} mb-4`}>
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertTitle className="text-white">
+              {gameWon ? "🏆🏁 You won! 🏁🏆" : "🏎️💨 Game Over! 🚩"}
+            </AlertTitle>
+            <AlertDescription className="text-gray-300">
+              <div className="relative h-20 overflow-hidden">
+                <div className="absolute w-full transform transition-transform duration-1000 ease-in-out animate-race">
+                  {gameWon
+                    ? (
+                      <>
+                        <div>
+                          {congratulatoryPhrases[Math.floor(Math.random() * congratulatoryPhrases.length)]}
+                        </div>
+                      </>
+                    )
+                    : `The answer was ${word}. Better luck tomorrow!`
+                        .split(' ')
+                        .map((word, index) => (
+                          <span
+                            key={index}
+                            className="inline-block transform transition-all duration-500 ease-in-out"
+                            style={{
+                              animationDelay: `${index * 0.1}s`,
+                            }}
+                          >
+                            {word}{' '}
+                          </span>
+                        ))}
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
           <Button
-            onClick={handleGuess}
-            className="w-full mt-2 text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white"
+            onClick={shareResult}
+            className="w-full flex items-center justify-center text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white"
           >
-            Guess
+            <Share2 className="mr-2 h-4 w-4" /> Share Result
           </Button>
         </div>
-      )}
-      {gameOver && (
-        <Alert className={`bg-gray-800 ${gameWon ? 'border-green-600' : 'border-red-600'}`}>
-          <AlertCircle className="h-4 w-4 text-red-600" />
-          <AlertTitle className="text-white">
-            {gameWon ? "🏆🏁 You won! 🏁🏆" : "🏎️💨 Game Over! 🚩"}
-          </AlertTitle>
-          <AlertDescription className="text-gray-300">
-            <div className="relative h-20 overflow-hidden">
-              <div className="absolute w-full transform transition-transform duration-1000 ease-in-out animate-race">
-                {gameWon
-                  ? (
-                    <>
-                      <div>
-                        {congratulatoryPhrases[Math.floor(Math.random() * congratulatoryPhrases.length)]}
-                      </div>
-                    </>
-                  )
-                  : `The answer was ${word}. Better luck tomorrow!`
-                      .split(' ')
-                      .map((word, index) => (
-                        <span
-                          key={index}
-                          className="inline-block transform transition-all duration-500 ease-in-out"
-                          style={{
-                            animationDelay: `${index * 0.1}s`,
-                          }}
-                        >
-                          {word}{' '}
-                        </span>
-                      ))}
-              </div>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-      <div className="mt-4 flex justify-center">
-        <Button
-          onClick={shareResult}
-          className="flex items-center text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white"
-        >
-          <Share2 className="mr-2 h-4 w-4" /> Share Result
-        </Button>
+      );
+    } else {
+      return (
+        <CustomKeyboard onKeyPress={handleKeyPress} usedLetters={usedLetters} />
+      );
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-900 text-white">
+      <div className="flex-grow overflow-auto p-4">
+        <div className="mb-4 h-8 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CiAgPHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZmZmIiAvPgogIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZmZmIiAvPgo8L3N2Zz4=')]"></div>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center text-red-600">
+          Word Grid
+        </h1>
+        <div className="text-center mb-4 text-gray-300">
+          Guess the {word.length}-letter F1 word, phrase or name
+        </div>
+        {renderGrid()}
+        {errorMessage && (
+          <p className="text-red-500 text-sm mt-1 text-center">{errorMessage}</p>
+        )}
+      </div>
+      <div className="mt-auto">
+        {renderBottomSection()}
       </div>
       <ShareModal
         isOpen={isShareModalOpen}
