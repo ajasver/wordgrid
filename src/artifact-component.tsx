@@ -97,7 +97,7 @@ const WordGrid: React.FC = () => {
       gameOver: false,
       gameWon: false,
       usedLetters: {}
-    }), { expires: 1 });
+    }), { expires: 1 }); // Cookie expires in 1 day
   }, []);
 
   useEffect(() => {
@@ -202,26 +202,39 @@ const WordGrid: React.FC = () => {
 
   const renderGrid = () => {
     const allGuesses = [...guesses, currentGuess, ...Array(5 - guesses.length).fill("")];
-    return allGuesses.map((guess, i) => (     
-      <div key={i} className="flex mb-2 justify-center">
-        {Array.from({ length: word.length }).map((_, j) => (
-          <div
-            key={j}
-            className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center mx-0.5 sm:mx-1 text-sm sm:text-base
-              relative overflow-hidden
-              ${!guess ? "bg-gray-800" : 
-                i === guesses.length ? "bg-gray-700" :
-                getLetterColor(j, guess)}`}
-          >
-            <div className="absolute top-0 left-0 right-0 h-1 bg-white"></div>
-            <div className="absolute top-0 bottom-1/2 left-0 w-1 bg-white"></div>
-            <div className="absolute top-0 bottom-1/2 right-0 w-1 bg-white"></div>
-           
-            <span className="relative z-10">{guess[j] || ""}</span>
-          </div>
-        ))}
+    return (
+      <div className="grid-container w-full max-w-md mx-auto">
+        <div className="grid">
+          {allGuesses.map((guess, i) => (     
+            <div 
+              key={i} 
+              className="flex mb-1 justify-center"
+              id={i === guesses.length ? 'current-row' : undefined}
+            >
+              {Array.from({ length: word.length }).map((_, j) => (
+                <div
+                  key={j}
+                  className={`aspect-square flex items-center justify-center m-0.5 text-2xl font-bold
+                    relative overflow-hidden
+                    ${!guess ? "bg-gray-800" : 
+                      i === guesses.length ? "bg-gray-700" :
+                      getLetterColor(j, guess)}`}
+                  style={{
+                    width: `calc((100% - ${word.length + 1}*0.25rem) / ${word.length})`,
+                  }}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-white"></div>
+                  <div className="absolute top-0 bottom-1/2 left-0 w-1 bg-white"></div>
+                  <div className="absolute top-0 bottom-1/2 right-0 w-1 bg-white"></div>
+                 
+                  <span className="relative z-10">{guess[j] || ""}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
-    ));
+    );
   };
 
   const shareResult = () => {
@@ -300,12 +313,12 @@ const WordGrid: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
-      <div className="flex-grow overflow-auto p-4">
-        <div className="mb-4 h-8 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CiAgPHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZmZmIiAvPgogIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZmZmIiAvPgo8L3N2Zz4=')]"></div>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center text-red-600">
+      <div className="flex-grow overflow-auto p-2">
+        <div className="mb-2 h-8 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CiAgPHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZmZmIiAvPgogIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZmZmIiAvPgo8L3N2Zz4=')]"></div>
+        <h1 className="text-xl font-bold mb-2 text-center text-red-600">
           Word Grid
         </h1>
-        <div className="text-center mb-4 text-gray-300">
+        <div className="text-center mb-2 text-gray-300 text-sm">
           Guess the {word.length}-letter F1 word, phrase or name
         </div>
         {renderGrid()}

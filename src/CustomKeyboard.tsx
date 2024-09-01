@@ -24,7 +24,7 @@ const CustomKeyboard: React.FC<CustomKeyboardProps> = ({ onKeyPress, usedLetters
   };
 
   return (
-    <div className="bg-gray-900 p-2 border-t border-gray-800">
+    <div className="bg-gray-900 p-2 border-t border-gray-800 fixed bottom-0 left-0 right-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 20px)' }}>
       {rows.map((row, rowIndex) => (
         <div key={rowIndex} className="flex justify-center mb-2">
           {row.map((key) => (
@@ -32,7 +32,12 @@ const CustomKeyboard: React.FC<CustomKeyboardProps> = ({ onKeyPress, usedLetters
               key={key}
               onClick={() => onKeyPress(key)}
               className={`mx-0.5 text-sm ${getKeyColor(key)}`}
-              style={{ minWidth: key === 'ENTER' ? '60px' : '30px', height: '40px' }}
+              style={{
+                minWidth: key === 'ENTER' ? '60px' : '30px',
+                width: key === 'ENTER' ? '60px' : '9%',
+                height: '60px', // Increased height by 50%
+                padding: '0 2px'
+              }}
             >
               {key}
             </Button>
