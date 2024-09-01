@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AlertCircle, Share2, Copy } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,7 @@ const WordGrid: React.FC = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [animationStarted, setAnimationStarted] = useState<boolean>(false);
   const [animationComplete, setAnimationComplete] = useState<boolean>(false);
+  const [congratsMessage, setCongratsMessage] = useState<string>("");
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -259,7 +260,7 @@ const WordGrid: React.FC = () => {
     setUsedLetters(newUsedLetters);
   };
 
-  const handleGuess = () => {
+  const handleGuess = useCallback(() => {
     if (currentGuess.length !== word.length && currentGuess !== "AJASVER") {
       setErrorMessage(`Please enter a ${word.length}-letter answer.`);
       return;
@@ -276,12 +277,13 @@ const WordGrid: React.FC = () => {
       setGameWon(true);
       stopTimer();
       updateCookieWithGameOver(true, true);
+      setCongratsMessage(congratulatoryPhrases[Math.floor(Math.random() * congratulatoryPhrases.length)]);
     } else if (newGuesses.length === 6) {
       setGameOver(true);
       stopTimer();
       updateCookieWithGameOver(true, false);
     }
-  };
+  }, [currentGuess, word, guesses, stopTimer, updateCookieWithGameOver]);
 
   const updateCookieWithGameOver = (isOver: boolean, isWon: boolean) => {
     const storedGameState = Cookies.get('wordGridGameState');
@@ -402,13 +404,7 @@ const WordGrid: React.FC = () => {
               <div className="relative h-20 overflow-hidden">
                 <div className="absolute w-full transform transition-transform duration-1000 ease-in-out animate-race">
                   {gameWon
-                    ? (
-                      <>
-                        <div>
-                          {congratulatoryPhrases[Math.floor(Math.random() * congratulatoryPhrases.length)]}
-                        </div>
-                      </>
-                    )
+                    ? <div>{congratsMessage}</div>
                     : `The answer was ${word}. Better luck tomorrow!`
                         .split(' ')
                         .map((word, index) => (
