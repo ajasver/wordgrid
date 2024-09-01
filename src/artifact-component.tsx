@@ -151,7 +151,7 @@ const WordGrid: React.FC = () => {
       const rows = animationGrid.querySelectorAll('.flex');
       rows.forEach((row, index) => {
         setTimeout(() => {
-          row.childNodes.forEach((cell: Element) => {
+          row.childNodes.forEach((cell: ChildNode) => {
             (cell as HTMLElement).style.backgroundColor = 'red';
           });
           if (index === rows.length - 1) {
@@ -260,6 +260,16 @@ const WordGrid: React.FC = () => {
     setUsedLetters(newUsedLetters);
   };
 
+  const updateCookieWithGameOver = (isOver: boolean, isWon: boolean) => {
+    const storedGameState = Cookies.get('wordGridGameState');
+    if (storedGameState) {
+      const gameState = JSON.parse(storedGameState);
+      gameState.gameOver = isOver;
+      gameState.gameWon = isWon;
+      Cookies.set('wordGridGameState', JSON.stringify(gameState), { expires: 1 });
+    }
+  };
+
   const handleGuess = useCallback(() => {
     if (currentGuess.length !== word.length && currentGuess !== "AJASVER") {
       setErrorMessage(`Please enter a ${word.length}-letter answer.`);
@@ -284,16 +294,6 @@ const WordGrid: React.FC = () => {
       updateCookieWithGameOver(true, false);
     }
   }, [currentGuess, word, guesses, stopTimer, updateCookieWithGameOver]);
-
-  const updateCookieWithGameOver = (isOver: boolean, isWon: boolean) => {
-    const storedGameState = Cookies.get('wordGridGameState');
-    if (storedGameState) {
-      const gameState = JSON.parse(storedGameState);
-      gameState.gameOver = isOver;
-      gameState.gameWon = isWon;
-      Cookies.set('wordGridGameState', JSON.stringify(gameState), { expires: 1 });
-    }
-  };
 
   const getLetterColor = (index: number, guess: string): string => {
 
