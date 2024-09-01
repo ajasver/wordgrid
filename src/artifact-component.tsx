@@ -89,25 +89,38 @@ const WordGrid: React.FC = () => {
     }
   };
 
-  const getLetterColor = (letter: string, index: number, guess: string): string => {
-    if (letter === word[index]) return "bg-green-600";
+  const getLetterColor = (index: number, guess: string): string => {
 
-    const wordLetterCount: { [key: string]: number } = word.split("").reduce((acc, curr) => {
-      acc[curr] = (acc[curr] || 0) + 1;
-      return acc;
-    }, {} as { [key: string]: number });
+    const wordLetterCount: { [key: string]: number } = {};
+    const correctPositions: boolean[] = new Array(word.length).fill(false);
+    const correctLetter: boolean[] = new Array(word.length).fill(false);
+   
+    // First pass: count letters in word and mark correct positions
+    for (let i = 0; i < word.length; i++) {
+      wordLetterCount[word[i]] = (wordLetterCount[word[i]] || 0) + 1;
+    }
 
-    const guessLetterCount: { [key: string]: number } = guess.split("").reduce((acc, curr, i) => {
-      if (curr === word[i]) {
-        wordLetterCount[curr]--;
-      } else if (word.includes(curr)) {
-        acc[curr] = (acc[curr] || 0) + 1;
+    for (let i = 0; i < word.length; i++) {
+      if (word[i] === guess[i]) {
+        correctPositions[i] = true;
+        wordLetterCount[guess[i]]--;
       }
-      return acc;
-    }, {} as { [key: string]: number });
+    }
+    
+    for (let i = 0; i < word.length; i++) {
+      if (wordLetterCount[guess[i]] > 0) {
+        wordLetterCount[guess[i]]--;
+        correctLetter[i] = true;
+      }
+      else {
+        correctLetter[i] = false;
+      }
+    }
+    // If the current letter is in the correct position, return green
+    if (correctPositions[index]) return "bg-green-600";
 
-    if (guessLetterCount[letter] && wordLetterCount[letter] > 0) {
-      wordLetterCount[letter]--;
+    // Second pass: handle remaining letters
+    if (correctLetter[index]) {
       return "bg-yellow-600";
     }
 
@@ -116,14 +129,14 @@ const WordGrid: React.FC = () => {
 
   const renderGrid = () => {
     const allGuesses = [...guesses, ...Array(6 - guesses.length).fill("")];
-    return allGuesses.map((guess, i) => (
+    return allGuesses.map((guess, i) => (     
       <div key={i} className="flex mb-2 justify-center">
         {Array.from({ length: word.length }).map((_, j) => (
           <div
             key={j}
             className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center mx-0.5 sm:mx-1 text-sm sm:text-base
               relative overflow-hidden
-              ${!guess ? "bg-gray-800" : getLetterColor(guess[j], j, guess)}`}
+              ${!guess ? "bg-gray-800" : getLetterColor( j, guess)}`}
           >
             <div className="absolute top-0 left-0 right-0 h-1 bg-white"></div>
             <div className="absolute top-0 bottom-1/2 left-0 w-1 bg-white"></div>
@@ -141,19 +154,19 @@ const WordGrid: React.FC = () => {
       .map((guess) =>
         guess
           .split("")
-          .map((letter, i) => {
-            const color = getLetterColor(letter, i, guess);
+          .map((_, i) => {
+            const color = getLetterColor(i, guess);
             return color === "bg-green-600"
               ? "🟩"
               : color === "bg-yellow-600"
                 ? "🟨"
-                : "⬛";
+                : "🟥";
           })
           .join(""),
       )
       .join("\n");
 
-    const shareText = `Word Grid\n${result}\n${gameWon ? `Solved in ${guesses.length}/6 guesses!` : "Better luck tomorrow!"}`;
+    const shareText = `Word Grid F1\n${result}\n${gameWon ? `Solved in ${guesses.length}/6 guesses!` : "Better luck tomorrow!"} https://wordgridf1.com #WordGridF1 #F1 #Formula1`;
     setShareContent(shareText);
     setIsShareModalOpen(true);
   };
@@ -176,7 +189,7 @@ const WordGrid: React.FC = () => {
             onChange={(e) => setCurrentGuess(e.target.value.toUpperCase())}
             maxLength={word.length}
             className="w-full p-2 border border-gray-600 rounded bg-gray-800 text-white text-sm sm:text-base"
-            placeholder={`Enter a ${word.length}-letter F1-related answer`}
+            placeholder={`Guess the ${word.length}-letter F1 word, phrase or name`}
           />
           {errorMessage && (
             <p className="text-red-500 text-sm mt-1">{errorMessage}</p>
@@ -193,7 +206,7 @@ const WordGrid: React.FC = () => {
         <Alert className={`bg-gray-800 ${gameWon ? 'border-green-600' : 'border-red-600'}`}>
           <AlertCircle className="h-4 w-4 text-red-600" />
           <AlertTitle className="text-white">
-            {gameWon ? "You won!" : "Game Over!"}
+            {gameWon ? "🏆🏁 You won! 🏁🏆" : "🏎️💨 Game Over! 🚩"}
           </AlertTitle>
           <AlertDescription className="text-gray-300">
             <div className="relative h-20 overflow-hidden">
