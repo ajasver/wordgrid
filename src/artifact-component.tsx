@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { AlertCircle, Share2, Copy } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
-const words = [
+const words: string[] = [
   "PITSTOP",
   "BOXBOX",
   "ONPOLE",
@@ -50,14 +50,20 @@ const words = [
   "PADDOCK",
 ];
 
-const getWordOfDay = () => {
+const getWordOfDay = (): string => {
   const startDate = new Date("2023-01-01").setHours(0, 0, 0, 0);
   const today = new Date().setHours(0, 0, 0, 0);
   const index = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
   return words[index % words.length].toUpperCase();
 };
 
-const ShareModal = ({ isOpen, onClose, content }) => (
+interface ShareModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  content: string;
+}
+
+const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, content }) => (
   <Dialog open={isOpen} onOpenChange={onClose}>
     <DialogContent className="bg-gray-900 text-white">
       <DialogHeader>
@@ -87,14 +93,14 @@ const ShareModal = ({ isOpen, onClose, content }) => (
   </Dialog>
 );
 
-const WordGrid = () => {
-  const [word, setWord] = useState("");
-  const [guesses, setGuesses] = useState([]);
-  const [currentGuess, setCurrentGuess] = useState("");
-  const [gameOver, setGameOver] = useState(false);
-  const [gameWon, setGameWon] = useState(false);
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [shareContent, setShareContent] = useState("");
+const WordGrid: React.FC = () => {
+  const [word, setWord] = useState<string>("");
+  const [guesses, setGuesses] = useState<string[]>([]);
+  const [currentGuess, setCurrentGuess] = useState<string>("");
+  const [gameOver, setGameOver] = useState<boolean>(false);
+  const [gameWon, setGameWon] = useState<boolean>(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+  const [shareContent, setShareContent] = useState<string>("");
 
   useEffect(() => {
     setWord(getWordOfDay());
@@ -115,22 +121,22 @@ const WordGrid = () => {
     }
   };
 
-  const getLetterColor = (letter, index, guess) => {
+  const getLetterColor = (letter: string, index: number, guess: string): string => {
     if (letter === word[index]) return "bg-green-600";
 
-    const wordLetterCount = word.split("").reduce((acc, curr) => {
+    const wordLetterCount: { [key: string]: number } = word.split("").reduce((acc, curr) => {
       acc[curr] = (acc[curr] || 0) + 1;
       return acc;
-    }, {});
+    }, {} as { [key: string]: number });
 
-    const guessLetterCount = guess.split("").reduce((acc, curr, i) => {
+    const guessLetterCount: { [key: string]: number } = guess.split("").reduce((acc, curr, i) => {
       if (curr === word[i]) {
         wordLetterCount[curr]--;
       } else if (word.includes(curr)) {
         acc[curr] = (acc[curr] || 0) + 1;
       }
       return acc;
-    }, {});
+    }, {} as { [key: string]: number });
 
     if (guessLetterCount[letter] && wordLetterCount[letter] > 0) {
       wordLetterCount[letter]--;
