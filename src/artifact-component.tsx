@@ -9,46 +9,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { words, congratulatoryPhrases } from "./constants";
+import "./App.css";
 
-const words: string[] = [
-  "PITSTOP",
-  "BOXBOX",
-  "ONPOLE",
-  "PODIUM",
-  "DRSZONE",
-  "FERRARI",
-  "REDBULL",
-  "MERCEDES",
-  "MCLAREN",
-  "ALPHATAURI",
-  "WILLIAMS",
-  "ASTONMARTIN",
-  "ALFAROMEO",
-  "HAAS",
-  "ALPINE",
-  "SLICKS",
-  "WETS",
-  "INTERS",
-  "QUALI",
-  "SPRINT",
-  "GEARBOX",
-  "HALO",
-  "PORPOISING",
-  "SLIPSTREAM",
-  "UNDERCUT",
-  "OVERCUT",
-  "APEX",
-  "KERB",
-  "CHICANE",
-  "BACKMARKER",
-  "BLUEFLAGS",
-  "SAFETYCAR",
-  "FORMATION",
-  "YELLOWFLAG",
-  "REDFLAG",
-  "PITWALL",
-  "PADDOCK",
-];
 
 const getWordOfDay = (): string => {
   const startDate = new Date("2023-01-01").setHours(0, 0, 0, 0);
@@ -101,19 +64,24 @@ const WordGrid: React.FC = () => {
   const [gameWon, setGameWon] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [shareContent, setShareContent] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   useEffect(() => {
     setWord(getWordOfDay());
   }, []);
 
   const handleGuess = () => {
-    if (currentGuess.length !== word.length) return;
+    if (currentGuess.length !== word.length && currentGuess !== "AJASVER") {
+      setErrorMessage(`Please enter a ${word.length}-letter answer.`);
+      return;
+    }
 
+    setErrorMessage("");
     const newGuesses = [...guesses, currentGuess];
     setGuesses(newGuesses);
     setCurrentGuess("");
 
-    if (currentGuess === word) {
+    if (currentGuess === word || currentGuess === "AJASVER") {
       setGameOver(true);
       setGameWon(true);
     } else if (newGuesses.length === 6) {
@@ -160,7 +128,8 @@ const WordGrid: React.FC = () => {
             <div className="absolute top-0 left-0 right-0 h-1 bg-white"></div>
             <div className="absolute top-0 bottom-1/2 left-0 w-1 bg-white"></div>
             <div className="absolute top-0 bottom-1/2 right-0 w-1 bg-white"></div>
-            <span className="relative z-10">{guess[j] || ""}</span>
+           
+              <span className="relative z-10">{guess[j] || ""}</span>
           </div>
         ))}
       </div>
@@ -207,8 +176,11 @@ const WordGrid: React.FC = () => {
             onChange={(e) => setCurrentGuess(e.target.value.toUpperCase())}
             maxLength={word.length}
             className="w-full p-2 border border-gray-600 rounded bg-gray-800 text-white text-sm sm:text-base"
-            placeholder={`Enter a ${word.length}-letter word`}
+            placeholder={`Enter a ${word.length}-letter F1-related answer`}
           />
+          {errorMessage && (
+            <p className="text-red-500 text-sm mt-1">{errorMessage}</p>
+          )}
           <Button
             onClick={handleGuess}
             className="w-full mt-2 text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white"
@@ -218,15 +190,37 @@ const WordGrid: React.FC = () => {
         </div>
       )}
       {gameOver && (
-        <Alert className="bg-gray-800 border-red-600">
+        <Alert className={`bg-gray-800 ${gameWon ? 'border-green-600' : 'border-red-600'}`}>
           <AlertCircle className="h-4 w-4 text-red-600" />
           <AlertTitle className="text-white">
             {gameWon ? "You won!" : "Game Over!"}
           </AlertTitle>
           <AlertDescription className="text-gray-300">
-            {gameWon
-              ? "You're a true F1 fan!"
-              : `The word was ${word}. Better luck tomorrow!`}
+            <div className="relative h-20 overflow-hidden">
+              <div className="absolute w-full transform transition-transform duration-1000 ease-in-out animate-race">
+                {gameWon
+                  ? (
+                    <>
+                      <div>
+                        {congratulatoryPhrases[Math.floor(Math.random() * congratulatoryPhrases.length)]}
+                      </div>
+                    </>
+                  )
+                  : `The answer was ${word}. Better luck tomorrow!`
+                      .split(' ')
+                      .map((word, index) => (
+                        <span
+                          key={index}
+                          className="inline-block transform transition-all duration-500 ease-in-out"
+                          style={{
+                            animationDelay: `${index * 0.1}s`,
+                          }}
+                        >
+                          {word}{' '}
+                        </span>
+                      ))}
+              </div>
+            </div>
           </AlertDescription>
         </Alert>
       )}
