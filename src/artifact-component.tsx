@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AlertCircle, Share2, Copy } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -68,13 +68,18 @@ const WordGrid: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [usedLetters, setUsedLetters] = useState<{[key: string]: string}>({});
   const [todaysWord, setTodaysWord] = useState<string>("");
+  const [showKeyboard, setShowKeyboard] = useState<boolean>(false);
+  const [timer, setTimer] = useState<number>(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [animationStarted, setAnimationStarted] = useState<boolean>(false);
+  const [animationComplete, setAnimationComplete] = useState<boolean>(false);
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
     const storedGameState = Cookies.get('wordGridGameState');
     
     if (storedGameState) {
-      const { date, word, guesses: storedGuesses, gameOver: storedGameOver, gameWon: storedGameWon, usedLetters: storedUsedLetters } = JSON.parse(storedGameState);
+      const { date, word, guesses: storedGuesses, gameOver: storedGameOver, gameWon: storedGameWon, usedLetters: storedUsedLetters, timer: storedTimer } = JSON.parse(storedGameState);
       
       if (date === today) {
         setWord(word);
@@ -83,6 +88,15 @@ const WordGrid: React.FC = () => {
         setGameWon(storedGameWon);
         setTodaysWord(word);
         setUsedLetters(storedUsedLetters || {});
+        setTimer(storedTimer || 0);
+        setShowKeyboard(true);
+        setAnimationComplete(true);
+        
+        if (!storedGameOver && !storedGameWon) {
+          startTimer(storedTimer || 0);
+        }
+        
+        console.log("Existing game loaded, timer resumed");
         return;
       }
     }
@@ -97,22 +111,125 @@ const WordGrid: React.FC = () => {
       gameOver: false,
       gameWon: false,
       usedLetters: {}
-    }), { expires: 1 }); // Cookie expires in 1 day
+    }), { expires: 1 });
+
+    console.log("New game started, setting animationStarted to true");
+    setAnimationStarted(true);
   }, []);
 
   useEffect(() => {
-    if (todaysWord) {
-      const today = new Date().toISOString().split('T')[0];
-      Cookies.set('wordGridGameState', JSON.stringify({
-        date: today,
-        word: todaysWord,
-        guesses,
-        gameOver,
-        gameWon,
-        usedLetters
-      }), { expires: 1 });
+    if (animationStarted) {
+      console.log("Animation started, calling animateIntro");
+      const timeout = setTimeout(() => {
+        animateIntro();
+      }, 500);
+      return () => clearTimeout(timeout);
     }
-  }, [guesses, gameOver, gameWon, todaysWord, usedLetters]);
+  }, [animationStarted]);
+
+  const animateIntro = () => {
+    console.log("Animate intro called");
+    const gridContainer = document.querySelector('.grid-container');
+    if (gridContainer) {
+      const animationGrid = document.createElement('div');
+      animationGrid.className = 'grid animation-grid';
+      gridContainer.appendChild(animationGrid);
+
+      for (let i = 0; i < 6; i++) {
+        const row = document.createElement('div');
+        row.className = 'flex mb-1 justify-center';
+        for (let j = 0; j < word.length; j++) {
+          const cell = document.createElement('div');
+          cell.className = 'aspect-square m-0.5';
+          cell.style.width = `calc((100% - ${word.length + 1}*0.25rem) / ${word.length})`;
+          row.appendChild(cell);
+        }
+        animationGrid.appendChild(row);
+      }
+
+      const rows = animationGrid.querySelectorAll('.flex');
+      rows.forEach((row, index) => {
+        setTimeout(() => {
+          row.childNodes.forEach((cell: Element) => {
+            (cell as HTMLElement).style.backgroundColor = 'red';
+          });
+          if (index === rows.length - 1) {
+            setTimeout(() => {
+              showLightsOutMessage();
+            }, 500);
+          }
+        }, index * 200);
+      });
+    } else {
+      console.log("Grid container not found");
+    }
+  };
+
+  const showLightsOutMessage = () => {
+    console.log("Showing Lights Out message");
+    const gridContainer = document.querySelector('.grid-container');
+    if (gridContainer) {
+      const message = document.createElement('div');
+      message.textContent = 'Lights Out!';
+      message.className = 'text-4xl font-bold text-white absolute inset-0 flex items-center justify-center bg-black bg-opacity-80';
+      gridContainer.appendChild(message);
+
+      setTimeout(() => {
+        message.remove();
+        const animationGrid = document.querySelector('.animation-grid');
+        if (animationGrid) {
+          animationGrid.remove();
+        }
+        setAnimationComplete(true);
+        setShowKeyboard(true);
+        console.log("Animation complete, keyboard shown");
+      }, 1500);
+    }
+  };
+
+  useEffect(() => {
+    if (showKeyboard) {
+      startTimer();
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [showKeyboard]);
+
+  const startTimer = (initialTime: number = 0) => {
+    setTimer(initialTime);
+    timerRef.current = setInterval(() => {
+      setTimer(prevTimer => {
+        const newTime = prevTimer + 1;
+        updateCookieWithTimer(newTime);
+        return newTime;
+      });
+    }, 1000);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    updateCookieWithTimer(timer);
+  };
+
+  const updateCookieWithTimer = (currentTime: number) => {
+    const storedGameState = Cookies.get('wordGridGameState');
+    if (storedGameState) {
+      const gameState = JSON.parse(storedGameState);
+      gameState.timer = currentTime;
+      Cookies.set('wordGridGameState', JSON.stringify(gameState), { expires: 1 });
+    }
+  };
+
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
 
   const handleKeyPress = (key: string) => {
     if (gameOver) return;
@@ -157,8 +274,22 @@ const WordGrid: React.FC = () => {
     if (currentGuess === word || currentGuess === "AJASVER") {
       setGameOver(true);
       setGameWon(true);
+      stopTimer();
+      updateCookieWithGameOver(true, true);
     } else if (newGuesses.length === 6) {
       setGameOver(true);
+      stopTimer();
+      updateCookieWithGameOver(true, false);
+    }
+  };
+
+  const updateCookieWithGameOver = (isOver: boolean, isWon: boolean) => {
+    const storedGameState = Cookies.get('wordGridGameState');
+    if (storedGameState) {
+      const gameState = JSON.parse(storedGameState);
+      gameState.gameOver = isOver;
+      gameState.gameWon = isWon;
+      Cookies.set('wordGridGameState', JSON.stringify(gameState), { expires: 1 });
     }
   };
 
@@ -203,36 +334,34 @@ const WordGrid: React.FC = () => {
   const renderGrid = () => {
     const allGuesses = [...guesses, currentGuess, ...Array(5 - guesses.length).fill("")];
     return (
-      <div className="grid-container w-full max-w-md mx-auto">
-        <div className="grid">
-          {allGuesses.map((guess, i) => (     
-            <div 
-              key={i} 
-              className="flex mb-1 justify-center"
-              id={i === guesses.length ? 'current-row' : undefined}
-            >
-              {Array.from({ length: word.length }).map((_, j) => (
-                <div
-                  key={j}
-                  className={`aspect-square flex items-center justify-center m-0.5 text-2xl font-bold
-                    relative overflow-hidden
-                    ${!guess ? "bg-gray-800" : 
-                      i === guesses.length ? "bg-gray-700" :
-                      getLetterColor(j, guess)}`}
-                  style={{
-                    width: `calc((100% - ${word.length + 1}*0.25rem) / ${word.length})`,
-                  }}
-                >
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-white"></div>
-                  <div className="absolute top-0 bottom-1/2 left-0 w-1 bg-white"></div>
-                  <div className="absolute top-0 bottom-1/2 right-0 w-1 bg-white"></div>
-                 
-                  <span className="relative z-10">{guess[j] || ""}</span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
+      <div className="grid">
+        {allGuesses.map((guess, i) => (     
+          <div 
+            key={i} 
+            className="flex mb-1 justify-center"
+            id={i === guesses.length ? 'current-row' : undefined}
+          >
+            {Array.from({ length: word.length }).map((_, j) => (
+              <div
+                key={j}
+                className={`aspect-square flex items-center justify-center m-0.5 text-2xl font-bold
+                  relative overflow-hidden
+                  ${!guess ? "" : 
+                    i === guesses.length ? "bg-gray-700" :
+                    getLetterColor(j, guess)}`}
+                style={{
+                  width: `calc((100% - ${word.length + 1}*0.25rem) / ${word.length})`,
+                }}
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-white"></div>
+                <div className="absolute top-0 bottom-1/2 left-0 w-1 bg-white"></div>
+                <div className="absolute top-0 bottom-1/2 right-0 w-1 bg-white"></div>
+               
+                <span className="relative z-10">{guess[j] || ""}</span>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     );
   };
@@ -254,7 +383,8 @@ const WordGrid: React.FC = () => {
       )
       .join("\n");
 
-    const shareText = `Word Grid F1\n${result}\n${gameWon ? `Solved in ${guesses.length}/6 guesses!` : "Better luck tomorrow!"} https://wordgridf1.com #WordGridF1 #F1 #Formula1`;
+    const lapTime = formatTime(timer);
+    const shareText = `Word Grid F1\n${result}\n${gameWon ? `Solved in ${guesses.length}/6 guesses!` : "Better luck tomorrow!"}\nLap Time: ${lapTime}\nhttps://wordgridf1.com #WordGridF1 #F1 #Formula1`;
     setShareContent(shareText);
     setIsShareModalOpen(true);
   };
@@ -318,16 +448,23 @@ const WordGrid: React.FC = () => {
         <h1 className="text-xl font-bold mb-2 text-center text-red-600">
           Word Grid
         </h1>
+        {showKeyboard && (
+          <div className="text-center mb-2 text-gray-300 text-sm">
+            Lap Time: {formatTime(timer)}
+          </div>
+        )}
         <div className="text-center mb-2 text-gray-300 text-sm">
           Guess the {word.length}-letter F1 word, phrase or name
         </div>
-        {renderGrid()}
+        <div className="grid-container w-full max-w-md mx-auto relative">
+          {(!animationStarted || animationComplete) && renderGrid()}
+        </div>
         {errorMessage && (
           <p className="text-red-500 text-sm mt-1 text-center">{errorMessage}</p>
         )}
       </div>
       <div className="mt-auto">
-        {renderBottomSection()}
+        {showKeyboard ? renderBottomSection() : null}
       </div>
       <ShareModal
         isOpen={isShareModalOpen}
