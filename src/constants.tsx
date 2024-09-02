@@ -263,7 +263,7 @@ export const words: string[] = [
     "WHEEL",
     "DASHBOARD",
     "DISPLAY",
-    "LIGHTSOUT",
+    "LIGHTSOU",
     "TRACKING",
     "PITBOARD",
     "VISOR",

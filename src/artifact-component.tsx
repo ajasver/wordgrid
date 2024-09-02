@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { AlertCircle, Share2, Copy } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Share2, Copy } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +18,8 @@ const getWordOfDay = (): string => {
   const startDate = new Date("2023-01-01").setHours(0, 0, 0, 0);
   const today = new Date().setHours(0, 0, 0, 0);
   const index = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
-  return words[index % words.length].toUpperCase();
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('answer')?.toUpperCase() || words[index % words.length].toUpperCase();
 };
 
 interface ShareModalProps {
@@ -67,60 +68,101 @@ const WordGrid: React.FC = () => {
   const [shareContent, setShareContent] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [usedLetters, setUsedLetters] = useState<{[key: string]: string}>({});
-  const [todaysWord, setTodaysWord] = useState<string>("");
   const [showKeyboard, setShowKeyboard] = useState<boolean>(false);
   const [timer, setTimer] = useState<number>(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [animationStarted, setAnimationStarted] = useState<boolean>(false);
   const [animationComplete, setAnimationComplete] = useState<boolean>(false);
   const [congratsMessage, setCongratsMessage] = useState<string>("");
+  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
 
   useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isTimerRunning) {
+      interval = setInterval(() => {
+        setTimer((prevTimer) => {
+          const newTime = prevTimer + 1;
+          updateCookieWithTimer(newTime);
+          return newTime;
+        });
+      }, 1000);
+    } else if (interval) {
+      clearInterval(interval);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isTimerRunning]);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const resetGame = urlParams.get('reset') === 'true';
+
     const today = new Date().toISOString().split('T')[0];
     const storedGameState = Cookies.get('wordGridGameState');
     
-    if (storedGameState) {
-      const { date, word, guesses: storedGuesses, gameOver: storedGameOver, gameWon: storedGameWon, usedLetters: storedUsedLetters, timer: storedTimer } = JSON.parse(storedGameState);
+
+    if (storedGameState && !resetGame) {
+      const { date, word, guesses: storedGuesses, gameOver: storedGameOver, gameWon: storedGameWon, usedLetters: storedUsedLetters, timer: storedTimer, congratsMessage: storedCongratsMessage } = JSON.parse(storedGameState);
       
+
       if (date === today) {
         setWord(word);
-        setGuesses(storedGuesses);
+        setGuesses(storedGuesses || []);
         setGameOver(storedGameOver);
         setGameWon(storedGameWon);
-        setTodaysWord(word);
-        setUsedLetters(storedUsedLetters || {});
         setTimer(storedTimer || 0);
         setShowKeyboard(true);
         setAnimationComplete(true);
-        
-        if (!storedGameOver && !storedGameWon) {
-          startTimer(storedTimer || 0);
+        if (storedCongratsMessage) {
+          setCongratsMessage(storedCongratsMessage);
         }
-        
-        console.log("Existing game loaded, timer resumed");
+
+        // Set the timer running state based on whether the game is over
+        setIsTimerRunning(!storedGameOver);
+
+        // Initialize usedLetters based on stored guesses
+        const initialUsedLetters = storedUsedLetters || {};
+        if (storedGuesses && storedGuesses.length > 0) {
+          storedGuesses.forEach((guess: string) => {
+            for (let i = 0; i < guess.length; i++) {
+              const letter = guess[i].toUpperCase();
+              const status = getLetterStatus(i, guess, word);
+              if (status === 'correct' || (status === 'present' && initialUsedLetters[letter] !== 'correct') || (!initialUsedLetters[letter] && status === 'absent')) {
+                initialUsedLetters[letter] = status;
+              }
+            }
+          });
+        }
+        setUsedLetters(initialUsedLetters);
         return;
       }
     }
     
+    // Start a new game
     const newWord = getWordOfDay();
     setWord(newWord);
-    setTodaysWord(newWord);
+    setGuesses([]);
+    setGameOver(false);
+    setGameWon(false);
+    setUsedLetters({});
+    setTimer(0);
+    setIsTimerRunning(false); // Don't start the timer yet
+    
     Cookies.set('wordGridGameState', JSON.stringify({
       date: today,
       word: newWord,
       guesses: [],
       gameOver: false,
       gameWon: false,
-      usedLetters: {}
+      usedLetters: {},
+      timer: 0
     }), { expires: 1 });
 
-    console.log("New game started, setting animationStarted to true");
     setAnimationStarted(true);
   }, []);
 
   useEffect(() => {
     if (animationStarted) {
-      console.log("Animation started, calling animateIntro");
       const timeout = setTimeout(() => {
         animateIntro();
       }, 500);
@@ -128,8 +170,13 @@ const WordGrid: React.FC = () => {
     }
   }, [animationStarted]);
 
+  useEffect(() => {
+    if (animationComplete) {
+      setIsTimerRunning(true); // Start the timer when the animation is complete
+    }
+  }, [animationComplete]);
+
   const animateIntro = () => {
-    console.log("Animate intro called");
     const gridContainer = document.querySelector('.grid-container');
     if (gridContainer) {
       const animationGrid = document.createElement('div');
@@ -167,13 +214,18 @@ const WordGrid: React.FC = () => {
   };
 
   const showLightsOutMessage = () => {
-    console.log("Showing Lights Out message");
     const gridContainer = document.querySelector('.grid-container');
     if (gridContainer) {
       const message = document.createElement('div');
       message.textContent = 'Lights Out!';
-      message.className = 'text-4xl font-bold text-white absolute inset-0 flex items-center justify-center bg-black bg-opacity-80';
+      message.className = 'text-4xl font-bold text-white absolute inset-0 flex items-center justify-center';
       gridContainer.appendChild(message);
+
+      const cells = gridContainer.querySelectorAll('.animation-grid .flex > div');
+      cells.forEach((cell: Element) => {
+        (cell as HTMLElement).style.transition = 'background-color 0.5s ease';
+        (cell as HTMLElement).style.backgroundColor = 'black';
+      });
 
       setTimeout(() => {
         message.remove();
@@ -183,38 +235,8 @@ const WordGrid: React.FC = () => {
         }
         setAnimationComplete(true);
         setShowKeyboard(true);
-        console.log("Animation complete, keyboard shown");
       }, 1500);
     }
-  };
-
-  useEffect(() => {
-    if (showKeyboard) {
-      startTimer();
-    }
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [showKeyboard]);
-
-  const startTimer = (initialTime: number = 0) => {
-    setTimer(initialTime);
-    timerRef.current = setInterval(() => {
-      setTimer(prevTimer => {
-        const newTime = prevTimer + 1;
-        updateCookieWithTimer(newTime);
-        return newTime;
-      });
-    }, 1000);
-  };
-
-  const stopTimer = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    updateCookieWithTimer(timer);
   };
 
   const updateCookieWithTimer = (currentTime: number) => {
@@ -244,28 +266,29 @@ const WordGrid: React.FC = () => {
     }
   };
 
-  const updateUsedLetters = (guess: string) => {
-    const newUsedLetters = { ...usedLetters };
-    for (let i = 0; i < guess.length; i++) {
-      const letter = guess[i];
-      const color = getLetterColor(i, guess);
-      if (color === 'bg-green-600') {
-        newUsedLetters[letter] = 'correct';
-      } else if (color === 'bg-yellow-600' && newUsedLetters[letter] !== 'correct') {
-        newUsedLetters[letter] = 'present';
-      } else if (color === 'bg-red-700' && !newUsedLetters[letter]) {
-        newUsedLetters[letter] = 'absent';
+  const updateUsedLetters = useCallback((guess: string) => {
+    setUsedLetters(prevUsedLetters => {
+      const newUsedLetters = { ...prevUsedLetters };
+      for (let i = 0; i < guess.length; i++) {
+        const letter = guess[i].toUpperCase();
+        const status = getLetterStatus(i, guess, word);
+        if (status === 'correct' || (status === 'present' && newUsedLetters[letter] !== 'correct') || (!newUsedLetters[letter] && status === 'absent')) {
+          newUsedLetters[letter] = status;
+        }
       }
-    }
-    setUsedLetters(newUsedLetters);
-  };
+      return newUsedLetters;
+    });
+  }, [word]);
 
-  const updateCookieWithGameOver = (isOver: boolean, isWon: boolean) => {
+  const updateCookieWithGameOver = (isOver: boolean, isWon: boolean, congratsMsg?: string) => {
     const storedGameState = Cookies.get('wordGridGameState');
     if (storedGameState) {
       const gameState = JSON.parse(storedGameState);
       gameState.gameOver = isOver;
       gameState.gameWon = isWon;
+      if (congratsMsg) {
+        gameState.congratsMessage = congratsMsg;
+      }
       Cookies.set('wordGridGameState', JSON.stringify(gameState), { expires: 1 });
     }
   };
@@ -282,18 +305,27 @@ const WordGrid: React.FC = () => {
     updateUsedLetters(currentGuess);
     setCurrentGuess("");
 
+    // Update cookie with new guesses
+    const storedGameState = Cookies.get('wordGridGameState');
+    if (storedGameState) {
+      const gameState = JSON.parse(storedGameState);
+      gameState.guesses = newGuesses;
+      Cookies.set('wordGridGameState', JSON.stringify(gameState), { expires: 1 });
+    }
+
     if (currentGuess === word || currentGuess === "AJASVER") {
       setGameOver(true);
       setGameWon(true);
-      stopTimer();
-      updateCookieWithGameOver(true, true);
-      setCongratsMessage(congratulatoryPhrases[Math.floor(Math.random() * congratulatoryPhrases.length)]);
+      setIsTimerRunning(false); // Stop the timer
+      const newCongratsMessage = congratulatoryPhrases[Math.floor(Math.random() * congratulatoryPhrases.length)];
+      setCongratsMessage(newCongratsMessage);
+      updateCookieWithGameOver(true, true, newCongratsMessage);
     } else if (newGuesses.length === 6) {
       setGameOver(true);
-      stopTimer();
+      setIsTimerRunning(false); // Stop the timer
       updateCookieWithGameOver(true, false);
     }
-  }, [currentGuess, word, guesses, stopTimer, updateCookieWithGameOver]);
+  }, [currentGuess, word, guesses, updateCookieWithGameOver, updateUsedLetters]);
 
   const getLetterColor = (index: number, guess: string): string => {
 
@@ -334,23 +366,21 @@ const WordGrid: React.FC = () => {
   };
 
   const renderGrid = () => {
-    const allGuesses = [...guesses, currentGuess, ...Array(5 - guesses.length).fill("")];
     return (
       <div className="grid">
-        {allGuesses.map((guess, i) => (     
-          <div 
-            key={i} 
-            className="flex mb-1 justify-center"
-            id={i === guesses.length ? 'current-row' : undefined}
-          >
+        {Array.from({ length: 6 }).map((_, i) => (     
+          <div key={i} className="flex mb-1 justify-center">
             {Array.from({ length: word.length }).map((_, j) => (
               <div
                 key={j}
                 className={`aspect-square flex items-center justify-center m-0.5 text-2xl font-bold
-                  relative overflow-hidden
-                  ${!guess ? "" : 
-                    i === guesses.length ? "bg-gray-700" :
-                    getLetterColor(j, guess)}`}
+                  relative overflow-hidden ${
+                    i < guesses.length 
+                      ? getLetterColor(j, guesses[i]) 
+                      : i === guesses.length && j < currentGuess.length
+                      ? 'bg-gray-600'
+                      : 'bg-gray-700'
+                  }`}
                 style={{
                   width: `calc((100% - ${word.length + 1}*0.25rem) / ${word.length})`,
                 }}
@@ -358,8 +388,13 @@ const WordGrid: React.FC = () => {
                 <div className="absolute top-0 left-0 right-0 h-1 bg-white"></div>
                 <div className="absolute top-0 bottom-1/2 left-0 w-1 bg-white"></div>
                 <div className="absolute top-0 bottom-1/2 right-0 w-1 bg-white"></div>
-               
-                <span className="relative z-10">{guess[j] || ""}</span>
+                <span className="relative z-5">
+                  {i < guesses.length 
+                    ? guesses[i][j] 
+                    : i === guesses.length && j < currentGuess.length
+                    ? currentGuess[j]
+                    : ''}
+                </span>
               </div>
             ))}
           </div>
@@ -396,28 +431,27 @@ const WordGrid: React.FC = () => {
       return (
         <div className="bg-gray-900 p-4 border-t border-gray-800">
           <Alert className={`bg-gray-800 ${gameWon ? 'border-green-600' : 'border-red-600'} mb-4`}>
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle className="text-white">
-              {gameWon ? "🏆🏁 You won! 🏁🏆" : "🏎️💨 Game Over! 🚩"}
+            <AlertTitle className="text-white text-center text-xl">
+              {gameWon ? "🏁🏆 You won! 🏆🏁" : "🏎️💨 Game Over! 🚩"}
             </AlertTitle>
             <AlertDescription className="text-gray-300">
-              <div className="relative h-20 overflow-hidden">
+              <div className="relative h-20 overflow-hidden text-center text-xl">
                 <div className="absolute w-full transform transition-transform duration-1000 ease-in-out animate-race">
                   {gameWon
-                    ? <div>{congratsMessage}</div>
-                    : `The answer was ${word}. Better luck tomorrow!`
-                        .split(' ')
-                        .map((word, index) => (
-                          <span
-                            key={index}
-                            className="inline-block transform transition-all duration-500 ease-in-out"
-                            style={{
-                              animationDelay: `${index * 0.1}s`,
-                            }}
-                          >
-                            {word}{' '}
-                          </span>
-                        ))}
+                    ? (
+                      <>
+                        <div>{congratsMessage}</div>
+                        <div className="mt-2">Finish Lap Time: {formatTime(timer)}</div>
+                      </>
+                    )
+                    : (
+                        <>
+                          <div>{`The answer was ${word}. Better luck tomorrow!`
+                            }
+                          </div>
+                        </>
+                      )}
+                      
                 </div>
               </div>
             </AlertDescription>
@@ -432,8 +466,22 @@ const WordGrid: React.FC = () => {
       );
     } else {
       return (
-        <CustomKeyboard onKeyPress={handleKeyPress} usedLetters={usedLetters} />
+        <div className="bg-gray-900 p-4 border-t border-gray-800 z-50">
+          <CustomKeyboard onKeyPress={handleKeyPress} usedLetters={usedLetters} />
+        </div>
       );
+    }
+  };
+
+  // Add this helper function to determine letter status
+  const getLetterStatus = (index: number, guess: string, word: string): string => {
+    const letter = guess[index].toUpperCase();
+    if (letter === word[index].toUpperCase()) {
+      return 'correct';
+    } else if (word.toUpperCase().includes(letter)) {
+      return 'present';
+    } else {
+      return 'absent';
     }
   };
 
@@ -444,14 +492,12 @@ const WordGrid: React.FC = () => {
         <h1 className="text-xl font-bold mb-2 text-center text-red-600">
           Word Grid
         </h1>
-        {showKeyboard && (
-          <div className="text-center mb-2 text-gray-300 text-sm">
-            Lap Time: {formatTime(timer)}
-          </div>
-        )}
         <div className="text-center mb-2 text-gray-300 text-sm">
           Guess the {word.length}-letter F1 word, phrase or name
         </div>
+        <div className="text-center mb-2 text-gray-300 text-sm">
+        {gameOver ? "Final Lap Time: " : "Lap Time: "}{formatTime(timer)}
+      </div>
         <div className="grid-container w-full max-w-md mx-auto relative">
           {(!animationStarted || animationComplete) && renderGrid()}
         </div>
