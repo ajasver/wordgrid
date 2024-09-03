@@ -15,7 +15,7 @@ import CustomKeyboard from './CustomKeyboard';
 import Cookies from 'js-cookie';
 
 const getWordOfDay = (): string => {
-  const startDate = new Date("2023-01-01").setHours(0, 0, 0, 0);
+  const startDate = new Date("2024-09-02").setHours(0, 0, 0, 0);
   const today = new Date().setHours(0, 0, 0, 0);
   const index = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
   const urlParams = new URLSearchParams(window.location.search);
@@ -103,9 +103,10 @@ const WordGrid: React.FC = () => {
 
     if (storedGameState && !resetGame) {
       const { date, word, guesses: storedGuesses, gameOver: storedGameOver, gameWon: storedGameWon, usedLetters: storedUsedLetters, timer: storedTimer, congratsMessage: storedCongratsMessage } = JSON.parse(storedGameState);
-      
-
-      if (date === today) {
+      console.log("today", today);
+      console.log("storedGameState", storedGameState);
+      const todayWord = getWordOfDay();
+      if (date === today && word === todayWord) {
         setWord(word);
         setGuesses(storedGuesses || []);
         setGameOver(storedGameOver);
@@ -435,7 +436,7 @@ const WordGrid: React.FC = () => {
               {gameWon ? "🏁🏆 You won! 🏆🏁" : "🏎️💨 Game Over! 🚩"}
             </AlertTitle>
             <AlertDescription className="text-gray-300">
-              <div className="relative h-20 overflow-hidden text-center text-xl">
+              <div className="relative h-20 overflow-hidden text-center">
                 <div className="absolute w-full transform transition-transform duration-1000 ease-in-out animate-race">
                   {gameWon
                     ? (
